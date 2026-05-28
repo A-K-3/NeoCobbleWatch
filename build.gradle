@@ -16,6 +16,10 @@ repositories {
         url = 'https://thedarkcolour.github.io/KotlinForForge/'
         content { includeGroup "thedarkcolour" }
     }
+    maven {
+        name = 'ImpactDev (Cobblemon)'
+        url = 'https://maven.impactdev.net/repository/development/'
+    }
 }
 
 base {
@@ -104,6 +108,7 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 dependencies {
     implementation 'thedarkcolour:kotlinforforge-neoforge:5.3.0'
+    implementation "com.cobblemon:neoforge:${cobblemon_version}"
 
     // Example mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
