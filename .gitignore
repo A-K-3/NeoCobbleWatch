@@ -19,3 +19,9 @@ hs_err_pid*
 
 # Common working directory
 run
+
+# Claude Code local settings
+.claude/
+
+# Git Bash crash dumps
+*.stackdump
