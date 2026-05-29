@@ -22,7 +22,19 @@ internal object ModLifecycle {
         }
         serverThreadDispatcher.bind(event.server)
         modScope.start()
-        Neocobblewatch.LOGGER.info("NeoCobbleWatch started")
+
+        val http = Config.http()
+        val snapshot = Config.snapshot()
+        val database = Config.database()
+        Neocobblewatch.LOGGER.info(
+            "NeoCobbleWatch started — HTTP {}:{} (CORS origins: {}); snapshot every {}s (parallel {}); db {}",
+            http.bind,
+            http.port,
+            if (http.corsAllowedOrigins.isEmpty()) "none" else http.corsAllowedOrigins.joinToString(),
+            snapshot.intervalSeconds,
+            snapshot.parallelPlayerLimit,
+            database.path,
+        )
     }
 
     private fun onServerStopping(event: ServerStoppingEvent) {
