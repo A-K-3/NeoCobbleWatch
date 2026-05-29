@@ -3,7 +3,8 @@ plugins {
     id 'maven-publish'
     id 'idea'
     id 'net.neoforged.moddev' version '2.0.141'
-    id 'org.jetbrains.kotlin.jvm' version '2.0.0'
+    id 'org.jetbrains.kotlin.jvm' version '2.2.20'
+    id 'org.jetbrains.kotlin.plugin.serialization' version '2.2.20'
 }
 
 version = mod_version
@@ -106,30 +107,58 @@ neoForge {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 
+// Ktor 3.0.3 trae slf4j-api 2.0.16; Minecraft/NeoForge pinea strictly 2.0.9.
+// Forzamos a 2.0.9 solo en las configs que resuelven el classpath del juego — evita
+// tocar configurations internas del Kotlin compiler daemon, que comparten JVM.
+configurations.matching { it.name in ['compileClasspath', 'runtimeClasspath', 'jarJar'] }.configureEach {
+    resolutionStrategy.force 'org.slf4j:slf4j-api:2.0.9'
+}
+
+// ModDevGradle 2.0.141 desactiva transitivas en la configuration `jarJar` a propósito
+// (JarJar.java: configuration.setTransitive(false)). Hay que enumerar la closure entera.
+// El helper `embed(coord, range, preferred)` declara la dep en implementation Y en jarJar
+// con la misma version pin en una línea.
+ext.embed = { String coord, String range, String preferred ->
+    dependencies.jarJar(dependencies.implementation(coord)) {
+        version { strictly range; prefer preferred }
+    }
+}
+
 dependencies {
-    implementation 'thedarkcolour:kotlinforforge-neoforge:5.3.0'
+    implementation 'thedarkcolour:kotlinforforge-neoforge:5.10.0'
     implementation "com.cobblemon:neoforge:${cobblemon_version}"
 
-    // Example mod dependency with JEI
-    // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
-    // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
-    // compileOnly "mezz.jei:jei-${mc_version}-forge-api:${jei_version}"
-    // runtimeOnly "mezz.jei:jei-${mc_version}-forge:${jei_version}"
+    // --- Embedded (jarJar) ---
+    // Ktor server-prefijo (server/X):
+    def ktorRange = "[${ktor_version},4.0.0)"
+    ['core', 'cio', 'content-negotiation', 'status-pages', 'cors'].each { name ->
+        embed "io.ktor:ktor-server-${name}-jvm:${ktor_version}", ktorRange, ktor_version
+    }
+    // Ktor sin prefijo (utils, http, transitivas de server-core):
+    ['serialization-kotlinx-json', 'serialization-kotlinx', 'serialization',
+     'utils', 'http', 'http-cio', 'events', 'websockets', 'network', 'io'].each { name ->
+        embed "io.ktor:ktor-${name}-jvm:${ktor_version}", ktorRange, ktor_version
+    }
 
-    // Example mod dependency using a mod jar from ./libs with a flat dir repository
-    // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
-    // The group id is ignored when searching -- in this case, it is "blank"
-    // implementation "blank:coolmod-${mc_version}:${coolmod_version}"
+    // Kotlinx serialization:
+    def serRange = "[${kotlinx_serialization_version},2.0.0)"
+    ['json', 'core', 'json-io'].each { name ->
+        embed "org.jetbrains.kotlinx:kotlinx-serialization-${name}-jvm:${kotlinx_serialization_version}", serRange, kotlinx_serialization_version
+    }
 
-    // Example mod dependency using a file as dependency
-    // implementation files("libs/coolmod-${mc_version}-${coolmod_version}.jar")
+    // Kotlinx coroutines (Cobblemon también lo trae; JIJ deduplica por rango):
+    def coRange = "[${kotlinx_coroutines_version},2.0.0)"
+    embed "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:${kotlinx_coroutines_version}", coRange, kotlinx_coroutines_version
+    embed "org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:${kotlinx_coroutines_version}",     coRange, kotlinx_coroutines_version
 
-    // Example project dependency using a sister or child project:
-    // implementation project(":myproject")
+    // Kotlinx IO (transitiva de ktor-io):
+    def ioRange = "[${kotlinx_io_version},1.0.0)"
+    ['core', 'bytestring'].each { name ->
+        embed "org.jetbrains.kotlinx:kotlinx-io-${name}-jvm:${kotlinx_io_version}", ioRange, kotlinx_io_version
+    }
 
-    // For more info:
-    // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
-    // http://www.gradle.org/docs/current/userguide/dependency_management.html
+    // SQLite:
+    embed "org.xerial:sqlite-jdbc:${sqlite_jdbc_version}", "[${sqlite_jdbc_version},4.0.0.0)", sqlite_jdbc_version
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
