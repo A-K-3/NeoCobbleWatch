@@ -6,7 +6,7 @@ import com.cobblemon.mod.common.Cobblemon
 import com.cobblemon.mod.common.api.storage.pc.POKEMON_PER_BOX
 import net.minecraft.server.level.ServerPlayer
 
-internal class PcReader {
+internal object PcReader {
     fun readFor(player: ServerPlayer): PcSnapshot {
         assertServerThread(player.server)
         val pc = Cobblemon.storage.getPC(player.uuid, player.server.registryAccess())

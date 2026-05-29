@@ -1,22 +1,25 @@
 package ak.neocobblewatch
 
-import ak.neocobblewatch.core.ConfigSpec
+import ak.neocobblewatch.core.Config
 import ak.neocobblewatch.core.ModLifecycle
-import net.neoforged.fml.ModContainer
-import net.neoforged.fml.common.Mod
-import net.neoforged.fml.config.ModConfig
-import org.apache.logging.log4j.LogManager
-import org.apache.logging.log4j.Logger
+import net.fabricmc.api.ModInitializer
+import net.fabricmc.loader.api.FabricLoader
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
-@Mod(Neocobblewatch.ID)
-class Neocobblewatch(container: ModContainer) {
-    init {
-        container.registerConfig(ModConfig.Type.COMMON, ConfigSpec.spec)
-        ModLifecycle.register()
+object Neocobblewatch : ModInitializer {
+    const val ID = "neocobblewatch"
+
+    val LOGGER: Logger = LoggerFactory.getLogger(ID)
+
+    val VERSION: String by lazy {
+        FabricLoader.getInstance().getModContainer(ID)
+            .map { it.metadata.version.friendlyString }
+            .orElse("unknown")
     }
 
-    companion object {
-        const val ID = "neocobblewatch"
-        val LOGGER: Logger = LogManager.getLogger(ID)
+    override fun onInitialize() {
+        Config.load()
+        ModLifecycle.register()
     }
 }

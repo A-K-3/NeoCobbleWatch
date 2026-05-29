@@ -5,7 +5,7 @@ import com.cobblemon.mod.common.Cobblemon
 import com.cobblemon.mod.common.api.pokedex.PokedexEntryProgress
 import net.minecraft.server.level.ServerPlayer
 
-internal class PokedexReader {
+internal object PokedexReader {
     /**
      * Form-level fields (formsEncountered/formsCaught/shinyStates/gendersSeen) are left empty in v1;
      * they require enumerating each Species' forms, which is non-trivial and not worth the complexity

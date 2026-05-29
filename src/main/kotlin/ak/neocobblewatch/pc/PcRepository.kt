@@ -1,9 +1,11 @@
 package ak.neocobblewatch.pc
 
 import ak.neocobblewatch.persistence.Database
+import ak.neocobblewatch.persistence.queryLong
 import ak.neocobblewatch.persistence.setUuid
 import ak.neocobblewatch.pokemon.PokemonRow
 import java.sql.Connection
+import java.sql.ResultSet
 import java.util.UUID
 
 internal class PcRepository(private val db: Database) {
@@ -35,24 +37,59 @@ internal class PcRepository(private val db: Database) {
     }
 
     fun get(conn: Connection, playerUuid: UUID): PcSnapshot? {
-        val slots = mutableListOf<PcSlotSnapshot>()
-        var latestSnapshotAt = 0L
-        conn.prepareStatement(
+        val slots = queryRows(
+            conn,
             "SELECT * FROM pc_slots WHERE player_uuid = ? ORDER BY box_index, slot_index",
-        ).use { stmt ->
-            stmt.setUuid(1, playerUuid)
-            stmt.executeQuery().use { rs ->
+        ) { it.setUuid(1, playerUuid) }
+        if (slots.isEmpty()) return null
+        return PcSnapshot(
+            playerUuid = playerUuid,
+            slots = slots,
+            snapshotAt = readLatestSnapshotAt(conn, playerUuid),
+        )
+    }
+
+    fun listByBox(conn: Connection, playerUuid: UUID, boxIndex: Int): List<PcSlotSnapshot> = queryRows(
+        conn,
+        "SELECT * FROM pc_slots WHERE player_uuid = ? AND box_index = ? ORDER BY slot_index",
+    ) {
+        it.setUuid(1, playerUuid)
+        it.setInt(2, boxIndex)
+    }
+
+    fun listPaginated(conn: Connection, playerUuid: UUID, limit: Int, offset: Int): List<PcSlotSnapshot> = queryRows(
+        conn,
+        "SELECT * FROM pc_slots WHERE player_uuid = ? ORDER BY box_index, slot_index LIMIT ? OFFSET ?",
+    ) {
+        it.setUuid(1, playerUuid)
+        it.setInt(2, limit)
+        it.setInt(3, offset)
+    }
+
+    fun count(conn: Connection, playerUuid: UUID): Long =
+        conn.queryLong("SELECT COUNT(*) FROM pc_slots WHERE player_uuid = ?") { it.setUuid(1, playerUuid) }
+
+    private fun readLatestSnapshotAt(conn: Connection, playerUuid: UUID): Long =
+        conn.queryLong("SELECT MAX(snapshot_at) FROM pc_slots WHERE player_uuid = ?") { it.setUuid(1, playerUuid) }
+
+    private inline fun queryRows(
+        conn: Connection,
+        sql: String,
+        bind: (java.sql.PreparedStatement) -> Unit,
+    ): List<PcSlotSnapshot> {
+        val results = mutableListOf<PcSlotSnapshot>()
+        conn.prepareStatement(sql).use { stmt ->
+            bind(stmt)
+            stmt.executeQuery().use { rs: ResultSet ->
                 while (rs.next()) {
-                    slots += PcSlotSnapshot(
+                    results += PcSlotSnapshot(
                         boxIndex = rs.getInt("box_index"),
                         slotIndex = rs.getInt("slot_index"),
                         pokemon = PokemonRow.read(rs),
                     )
-                    latestSnapshotAt = rs.getLong("snapshot_at")
                 }
             }
         }
-        if (slots.isEmpty()) return null
-        return PcSnapshot(playerUuid = playerUuid, slots = slots, snapshotAt = latestSnapshotAt)
+        return results
     }
 }

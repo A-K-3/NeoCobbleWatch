@@ -16,6 +16,11 @@ internal object Migrations {
                 first_seen INTEGER NOT NULL,
                 last_seen INTEGER NOT NULL,
                 online INTEGER NOT NULL DEFAULT 0,
+                starter_prompted INTEGER NOT NULL DEFAULT 0,
+                starter_locked INTEGER NOT NULL DEFAULT 0,
+                starter_selected INTEGER NOT NULL DEFAULT 0,
+                starter_uuid TEXT,
+                key_items TEXT NOT NULL DEFAULT '[]',
                 snapshot_at INTEGER NOT NULL
             )
             """.trimIndent(),
@@ -34,6 +39,7 @@ internal object Migrations {
                 total_traded_count INTEGER NOT NULL DEFAULT 0,
                 type_capture_counts TEXT NOT NULL DEFAULT '{}',
                 defeated_counts TEXT NOT NULL DEFAULT '{}',
+                aspects_collected TEXT NOT NULL DEFAULT '{}',
                 snapshot_at INTEGER NOT NULL,
                 FOREIGN KEY (player_uuid) REFERENCES players(uuid) ON DELETE CASCADE
             )

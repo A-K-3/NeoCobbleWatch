@@ -5,7 +5,9 @@ import ak.neocobblewatch.pokemon.PokemonMapper
 import com.cobblemon.mod.common.Cobblemon
 import net.minecraft.server.level.ServerPlayer
 
-internal class PartyReader {
+internal object PartyReader {
+    private const val PARTY_SIZE = 6
+
     fun readFor(player: ServerPlayer): PartySnapshot {
         assertServerThread(player.server)
         val party = Cobblemon.storage.getParty(player.uuid, player.server.registryAccess())
@@ -18,9 +20,5 @@ internal class PartyReader {
             slots = slots,
             snapshotAt = System.currentTimeMillis(),
         )
-    }
-
-    private companion object {
-        const val PARTY_SIZE = 6
     }
 }

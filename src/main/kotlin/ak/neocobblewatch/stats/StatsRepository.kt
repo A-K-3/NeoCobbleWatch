@@ -19,8 +19,8 @@ internal class StatsRepository(private val db: Database) {
                 total_eggs_collected, total_eggs_hatched, total_evolved_count,
                 total_battle_victory_count, total_pvp_battle_victory_count,
                 total_pvw_battle_victory_count, total_pvn_battle_victory_count,
-                total_traded_count, type_capture_counts, defeated_counts, snapshot_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                total_traded_count, type_capture_counts, defeated_counts, aspects_collected, snapshot_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(player_uuid) DO UPDATE SET
                 total_capture_count = excluded.total_capture_count,
                 total_shiny_capture_count = excluded.total_shiny_capture_count,
@@ -34,6 +34,7 @@ internal class StatsRepository(private val db: Database) {
                 total_traded_count = excluded.total_traded_count,
                 type_capture_counts = excluded.type_capture_counts,
                 defeated_counts = excluded.defeated_counts,
+                aspects_collected = excluded.aspects_collected,
                 snapshot_at = excluded.snapshot_at
             """.trimIndent(),
         ).use { stmt ->
@@ -50,8 +51,42 @@ internal class StatsRepository(private val db: Database) {
             stmt.setInt(11, snapshot.totalTradedCount)
             stmt.setJson(12, snapshot.typeCaptureCounts)
             stmt.setJson(13, snapshot.defeatedCounts)
-            stmt.setLong(14, snapshot.snapshotAt)
+            stmt.setJson(14, snapshot.aspectsCollected)
+            stmt.setLong(15, snapshot.snapshotAt)
             stmt.executeUpdate()
+        }
+    }
+
+    fun aggregateGlobal(conn: Connection): GlobalStatsSnapshot {
+        conn.createStatement().use { stmt ->
+            stmt.executeQuery(
+                """
+                SELECT
+                    (SELECT COUNT(*) FROM players) AS total_players,
+                    (SELECT COUNT(*) FROM players WHERE online = 1) AS online_players,
+                    COALESCE(SUM(total_capture_count), 0) AS total_capture_count,
+                    COALESCE(SUM(total_shiny_capture_count), 0) AS total_shiny_capture_count,
+                    COALESCE(SUM(total_eggs_hatched), 0) AS total_eggs_hatched,
+                    COALESCE(SUM(total_evolved_count), 0) AS total_evolved_count,
+                    COALESCE(SUM(total_battle_victory_count), 0) AS total_battle_victory_count,
+                    COALESCE(SUM(total_pvp_battle_victory_count), 0) AS total_pvp_battle_victory_count,
+                    COALESCE(SUM(total_traded_count), 0) AS total_traded_count
+                FROM player_stats
+                """.trimIndent(),
+            ).use { rs ->
+                rs.next()
+                return GlobalStatsSnapshot(
+                    totalPlayers = rs.getLong("total_players"),
+                    onlinePlayers = rs.getLong("online_players"),
+                    totalCaptureCount = rs.getLong("total_capture_count"),
+                    totalShinyCaptureCount = rs.getLong("total_shiny_capture_count"),
+                    totalEggsHatched = rs.getLong("total_eggs_hatched"),
+                    totalEvolvedCount = rs.getLong("total_evolved_count"),
+                    totalBattleVictoryCount = rs.getLong("total_battle_victory_count"),
+                    totalPvpBattleVictoryCount = rs.getLong("total_pvp_battle_victory_count"),
+                    totalTradedCount = rs.getLong("total_traded_count"),
+                )
+            }
         }
     }
 
@@ -74,6 +109,7 @@ internal class StatsRepository(private val db: Database) {
                     totalTradedCount = rs.getInt("total_traded_count"),
                     typeCaptureCounts = rs.getJson("type_capture_counts"),
                     defeatedCounts = rs.getJson("defeated_counts"),
+                    aspectsCollected = rs.getJson("aspects_collected"),
                     snapshotAt = rs.getLong("snapshot_at"),
                 )
             }

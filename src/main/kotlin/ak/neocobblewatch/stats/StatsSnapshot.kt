@@ -16,5 +16,6 @@ internal data class StatsSnapshot(
     val totalTradedCount: Int,
     val typeCaptureCounts: Map<String, Int>,
     val defeatedCounts: Map<String, Int>,
+    val aspectsCollected: Map<String, Set<String>>,
     val snapshotAt: Long,
 )
