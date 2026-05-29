@@ -4,10 +4,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import net.minecraft.server.MinecraftServer
 import kotlin.coroutines.CoroutineContext
 
-/**
- * Posts work to Minecraft's main server thread via [MinecraftServer.execute].
- * The only safe place to touch Cobblemon's API.
- */
+/** The only safe dispatcher to touch Cobblemon's API. */
 internal class ServerThreadDispatcher : CoroutineDispatcher() {
     @Volatile
     private var server: MinecraftServer? = null
