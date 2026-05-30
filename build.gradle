@@ -27,6 +27,14 @@ repositories {
     }
 }
 
+configurations {
+    sqliteFat {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
+    }
+}
+
 loom {
     splitEnvironmentSourceSets()
     mods {
@@ -45,6 +53,16 @@ ext.embedLib = { String coord ->
     dependencies.add('implementation', coord)
     dependencies.add('include', coord)
 }
+
+// Plataformas para las que conservamos el binario nativo de SQLite. El driver
+// trae ~20 (Android/FreeBSD/PPC64/musl/ARMv6-7/x86/Mac/...) sumando ~13 MB; nos
+// quedamos sólo con las que vamos a desplegar. Si necesitas otra (p.ej. Mac/
+// aarch64 para dev), añade el prefijo aquí.
+def sqliteNativesToKeep = [
+    'org/sqlite/native/Linux/x86_64/',
+    'org/sqlite/native/Linux/aarch64/',
+    'org/sqlite/native/Windows/x86_64/',
+]
 
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
@@ -66,7 +84,13 @@ dependencies {
     ['core', 'bytestring'].each { name ->
         embedLib "org.jetbrains.kotlinx:kotlinx-io-${name}-jvm:${kotlinx_io_version}"
     }
-    embedLib "org.xerial:sqlite-jdbc:${sqlite_jdbc_version}"
+
+    // sqlite-jdbc se "shadea" directamente en el jar principal (ver bloque `jar`),
+    // filtrando nativos a las plataformas de `sqliteNativesToKeep`. No usamos JIJ
+    // aquí porque Loom 1.9 sólo acepta artefactos con coordenadas de módulo, y el
+    // driver se carga igual via classloader (no necesita ser nested jar).
+    implementation "org.xerial:sqlite-jdbc:${sqlite_jdbc_version}"
+    sqliteFat "org.xerial:sqlite-jdbc:${sqlite_jdbc_version}"
 
     // kotlinx-serialization/coroutines: provided by fabric-language-kotlin at runtime,
     // declared here only for compile + dev classpath. NOT bundled (would conflict).
@@ -91,6 +115,23 @@ tasks.withType(JavaCompile).configureEach {
 jar {
     from("LICENSE") {
         rename { "${it}_${project.base.archivesName.get()}" }
+    }
+
+    // Shadeamos sqlite-jdbc, filtrando los binarios nativos a las plataformas
+    // declaradas en `sqliteNativesToKeep`. EXCLUDE evita que el MANIFEST/módulo
+    // del driver pisen los nuestros.
+    dependsOn configurations.sqliteFat
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(zipTree({ configurations.sqliteFat.singleFile })) {
+        exclude 'META-INF/MANIFEST.MF'
+        exclude 'META-INF/maven/**'
+        exclude 'module-info.class'
+        eachFile { details ->
+            if (details.path.startsWith('org/sqlite/native/') &&
+                !sqliteNativesToKeep.any { prefix -> details.path.startsWith(prefix) }) {
+                details.exclude()
+            }
+        }
     }
 }
 

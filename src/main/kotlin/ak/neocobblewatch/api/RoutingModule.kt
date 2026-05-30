@@ -22,7 +22,6 @@ import io.ktor.server.routing.routing
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
-import java.net.URI
 
 @OptIn(ExperimentalSerializationApi::class)
 internal val ApiJson: Json = Json {
@@ -42,15 +41,10 @@ internal fun Application.installRouting(ctx: ApiContext) {
             )
         }
     }
-    if (ctx.httpConfig.corsAllowedOrigins.isNotEmpty()) {
-        install(CORS) {
-            ctx.httpConfig.corsAllowedOrigins.forEach { origin ->
-                val (host, scheme) = parseCorsOrigin(origin)
-                allowHost(host, schemes = listOf(scheme))
-            }
-            allowMethod(HttpMethod.Get)
-            allowHeader(HttpHeaders.ContentType)
-        }
+    install(CORS) {
+        anyHost()
+        allowMethod(HttpMethod.Get)
+        allowHeader(HttpHeaders.ContentType)
     }
     routing {
         route("/api/v1") {
@@ -59,16 +53,5 @@ internal fun Application.installRouting(ctx: ApiContext) {
             serverRoutes(ctx)
             topRoutes(ctx)
         }
-    }
-}
-
-private fun parseCorsOrigin(origin: String): Pair<String, String> {
-    return try {
-        val url = URI(origin)
-        val scheme = url.scheme ?: "http"
-        val portSuffix = if (url.port > 0) ":${url.port}" else ""
-        ("${url.host}$portSuffix") to scheme
-    } catch (e: Exception) {
-        origin to "http"
     }
 }

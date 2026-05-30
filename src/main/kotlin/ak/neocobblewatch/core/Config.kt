@@ -14,7 +14,6 @@ import kotlin.io.path.writeText
 internal data class HttpConfig(
     val port: Int,
     val bind: String,
-    val corsAllowedOrigins: List<String>,
 )
 
 internal data class SnapshotConfig(
@@ -32,7 +31,6 @@ internal data class DatabaseConfig(
 private data class ServerSection(
     val httpPort: Int = 8080,
     val httpBind: String = "127.0.0.1",
-    val corsAllowedOrigins: List<String> = emptyList(),
 )
 
 @Serializable
@@ -89,7 +87,6 @@ internal object Config {
     fun http(): HttpConfig = HttpConfig(
         port = current.server.httpPort,
         bind = current.server.httpBind,
-        corsAllowedOrigins = current.server.corsAllowedOrigins,
     )
 
     fun snapshot(): SnapshotConfig = SnapshotConfig(

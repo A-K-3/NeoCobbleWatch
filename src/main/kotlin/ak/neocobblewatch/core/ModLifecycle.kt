@@ -56,10 +56,9 @@ internal object ModLifecycle {
         val http = Config.http()
         val snapshot = Config.snapshot()
         Neocobblewatch.LOGGER.info(
-            "NeoCobbleWatch started — HTTP {}:{} (CORS origins: {}); snapshot every {}s (parallel {}); db {}",
+            "NeoCobbleWatch started — HTTP {}:{}; snapshot every {}s (parallel {}); db {}",
             http.bind,
             http.port,
-            if (http.corsAllowedOrigins.isEmpty()) "none" else http.corsAllowedOrigins.joinToString(),
             snapshot.intervalSeconds,
             snapshot.parallelPlayerLimit,
             dbPath,
