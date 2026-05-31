@@ -3,7 +3,9 @@ package ak.neocobblewatch.pokedex
 import ak.neocobblewatch.core.assertServerThread
 import com.cobblemon.mod.common.Cobblemon
 import com.cobblemon.mod.common.api.pokedex.PokedexEntryProgress
+import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
+import java.util.UUID
 
 internal object PokedexReader {
     /**
@@ -11,9 +13,11 @@ internal object PokedexReader {
      * they require enumerating each Species' forms, which is non-trivial and not worth the complexity
      * before the frontend needs them.
      */
-    fun readFor(player: ServerPlayer): PokedexSnapshot {
-        assertServerThread(player.server)
-        val dex = Cobblemon.playerDataManager.getPokedexData(player.uuid)
+    fun readFor(player: ServerPlayer): PokedexSnapshot = readFor(player.server, player.uuid)
+
+    fun readFor(server: MinecraftServer, uuid: UUID): PokedexSnapshot {
+        assertServerThread(server)
+        val dex = Cobblemon.playerDataManager.getPokedexData(uuid)
         val entries = dex.speciesRecords.map { (speciesId, record) ->
             PokedexEntrySnapshot(
                 speciesId = speciesId.toString(),
@@ -26,7 +30,7 @@ internal object PokedexReader {
             )
         }
         return PokedexSnapshot(
-            playerUuid = player.uuid,
+            playerUuid = uuid,
             entries = entries,
             snapshotAt = System.currentTimeMillis(),
         )

@@ -7,6 +7,7 @@ import ak.neocobblewatch.persistence.Database
 import ak.neocobblewatch.player.PlayerRepository
 import ak.neocobblewatch.pokedex.PokedexRepository
 import ak.neocobblewatch.snapshot.SnapshotScheduler
+import ak.neocobblewatch.species.SpeciesLabelsCache
 import ak.neocobblewatch.stats.StatsRepository
 import ak.neocobblewatch.stats.TopsRepository
 
@@ -20,4 +21,5 @@ internal class ApiContext(
     val partyRepository: PartyRepository,
     val pcRepository: PcRepository,
     val topsRepository: TopsRepository,
+    val speciesLabelsCache: SpeciesLabelsCache,
 )

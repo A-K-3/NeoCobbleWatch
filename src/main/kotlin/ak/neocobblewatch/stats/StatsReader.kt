@@ -3,14 +3,18 @@ package ak.neocobblewatch.stats
 import ak.neocobblewatch.core.assertServerThread
 import com.cobblemon.mod.common.Cobblemon
 import com.cobblemon.mod.common.api.types.ElementalTypes
+import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
+import java.util.UUID
 
 internal object StatsReader {
-    fun readFor(player: ServerPlayer): StatsSnapshot {
-        assertServerThread(player.server)
-        val data = Cobblemon.playerDataManager.getGenericData(player.uuid).advancementData
+    fun readFor(player: ServerPlayer): StatsSnapshot = readFor(player.server, player.uuid)
+
+    fun readFor(server: MinecraftServer, uuid: UUID): StatsSnapshot {
+        assertServerThread(server)
+        val data = Cobblemon.playerDataManager.getGenericData(uuid).advancementData
         return StatsSnapshot(
-            playerUuid = player.uuid,
+            playerUuid = uuid,
             totalCaptureCount = data.totalCaptureCount,
             totalShinyCaptureCount = data.totalShinyCaptureCount,
             totalEggsCollected = data.totalEggsCollected,

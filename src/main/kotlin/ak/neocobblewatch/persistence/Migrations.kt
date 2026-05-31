@@ -120,7 +120,20 @@ internal object Migrations {
         ),
     )
 
-    private val all: List<Migration> = listOf(V1)
+    private val V2 = Migration(
+        version = 2,
+        statements = listOf(
+            """
+            CREATE TABLE mod_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        ),
+    )
+
+    private val all: List<Migration> = listOf(V1, V2)
 
     fun applyAll(conn: Connection) {
         ensureSchemaVersionTable(conn)

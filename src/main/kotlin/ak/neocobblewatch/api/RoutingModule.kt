@@ -6,6 +6,7 @@ import ak.neocobblewatch.api.dto.ApiErrorDetail
 import ak.neocobblewatch.api.routes.healthRoutes
 import ak.neocobblewatch.api.routes.playerRoutes
 import ak.neocobblewatch.api.routes.serverRoutes
+import ak.neocobblewatch.api.routes.speciesRoutes
 import ak.neocobblewatch.api.routes.topRoutes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -51,6 +52,7 @@ internal fun Application.installRouting(ctx: ApiContext) {
             healthRoutes(ctx.scheduler)
             playerRoutes(ctx)
             serverRoutes(ctx)
+            speciesRoutes(ctx)
             topRoutes(ctx)
         }
     }

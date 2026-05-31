@@ -9,6 +9,7 @@ import ak.neocobblewatch.pc.PcReader
 import ak.neocobblewatch.pc.PcRepository
 import ak.neocobblewatch.pc.PcSnapshot
 import ak.neocobblewatch.persistence.Database
+import ak.neocobblewatch.player.OfflinePlayerContext
 import ak.neocobblewatch.player.PlayerReader
 import ak.neocobblewatch.player.PlayerRepository
 import ak.neocobblewatch.player.PlayerSnapshot
@@ -18,8 +19,10 @@ import ak.neocobblewatch.pokedex.PokedexSnapshot
 import ak.neocobblewatch.stats.StatsReader
 import ak.neocobblewatch.stats.StatsRepository
 import ak.neocobblewatch.stats.StatsSnapshot
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
+import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
 
 internal class PlayerSnapshotter(
@@ -36,32 +39,42 @@ internal class PlayerSnapshotter(
      * to SQLite in a single transaction — one fsync instead of five.
      * Per-player errors are swallowed and logged so the scheduler's outer loop can move on.
      */
-    suspend fun snapshot(player: ServerPlayer, online: Boolean = true) {
+    suspend fun snapshot(player: ServerPlayer, online: Boolean = true) =
+        snapshotSafe(player.name.string, player.uuid) {
+            withContext(serverThreadDispatcher) { readOnline(player, online) }
+        }
+
+    /** Offline path: caller resolves identity/timestamps from disk before invoking. */
+    suspend fun snapshot(server: MinecraftServer, ctx: OfflinePlayerContext) =
+        snapshotSafe(ctx.name, ctx.uuid) {
+            withContext(serverThreadDispatcher) { readOffline(server, ctx) }
+        }
+
+    private suspend fun snapshotSafe(name: String, uuid: UUID, read: suspend () -> Bundle) {
         try {
-            val bundle = readOnServerThread(player, online)
-            persist(bundle)
+            persist(read())
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Neocobblewatch.LOGGER.warn(
-                "Snapshot failed for {} ({}): {}",
-                player.name.string,
-                player.uuid,
-                e.message,
-                e,
-            )
+            Neocobblewatch.LOGGER.warn("Snapshot failed for {} ({}): {}", name, uuid, e.message, e)
         }
     }
 
-    private suspend fun readOnServerThread(player: ServerPlayer, online: Boolean): Bundle = withContext(serverThreadDispatcher) {
-        Bundle(
-            player = PlayerReader.readFor(player, online),
-            stats = StatsReader.readFor(player),
-            pokedex = PokedexReader.readFor(player),
-            party = PartyReader.readFor(player),
-            pc = PcReader.readFor(player),
-        )
-    }
+    private fun readOnline(player: ServerPlayer, online: Boolean): Bundle = Bundle(
+        player = PlayerReader.readFor(player, online),
+        stats = StatsReader.readFor(player),
+        pokedex = PokedexReader.readFor(player),
+        party = PartyReader.readFor(player),
+        pc = PcReader.readFor(player),
+    )
+
+    private fun readOffline(server: MinecraftServer, ctx: OfflinePlayerContext): Bundle = Bundle(
+        player = PlayerReader.readFor(server, ctx, online = false),
+        stats = StatsReader.readFor(server, ctx.uuid),
+        pokedex = PokedexReader.readFor(server, ctx.uuid),
+        party = PartyReader.readFor(server, ctx.uuid),
+        pc = PcReader.readFor(server, ctx.uuid),
+    )
 
     private suspend fun persist(bundle: Bundle) = database.transaction { conn ->
         playerRepository.upsert(conn, bundle.player)
