@@ -32,6 +32,3 @@ run
 # Playwright MCP screenshot/snapshot dumps
 .playwright-mcp/
 /home-*.png
-
-# Companion web frontend (lives in its own repo)
-web/
