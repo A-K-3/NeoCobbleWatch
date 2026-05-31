@@ -133,7 +133,94 @@ internal object Migrations {
         ),
     )
 
-    private val all: List<Migration> = listOf(V1, V2)
+    private val V3 = Migration(
+        version = 3,
+        statements = listOf(
+            """
+            CREATE TABLE player_activity (
+                player_uuid TEXT PRIMARY KEY,
+                play_time_ticks INTEGER NOT NULL DEFAULT 0,
+                deaths INTEGER NOT NULL DEFAULT 0,
+                mob_kills INTEGER NOT NULL DEFAULT 0,
+                fish_caught INTEGER NOT NULL DEFAULT 0,
+                damage_dealt INTEGER NOT NULL DEFAULT 0,
+                damage_taken INTEGER NOT NULL DEFAULT 0,
+                damage_blocked INTEGER NOT NULL DEFAULT 0,
+                walk_cm INTEGER NOT NULL DEFAULT 0,
+                sprint_cm INTEGER NOT NULL DEFAULT 0,
+                fly_cm INTEGER NOT NULL DEFAULT 0,
+                swim_cm INTEGER NOT NULL DEFAULT 0,
+                jumps INTEGER NOT NULL DEFAULT 0,
+                sleep_in_bed INTEGER NOT NULL DEFAULT 0,
+                traded_with_villager INTEGER NOT NULL DEFAULT 0,
+                level_ups INTEGER NOT NULL DEFAULT 0,
+                evolutions INTEGER NOT NULL DEFAULT 0,
+                times_ridden INTEGER NOT NULL DEFAULT 0,
+                riding_land_cm INTEGER NOT NULL DEFAULT 0,
+                riding_air_cm INTEGER NOT NULL DEFAULT 0,
+                riding_liquid_cm INTEGER NOT NULL DEFAULT 0,
+                eggs_collected INTEGER NOT NULL DEFAULT 0,
+                eggs_hatched INTEGER NOT NULL DEFAULT 0,
+                rod_casts INTEGER NOT NULL DEFAULT 0,
+                reel_ins INTEGER NOT NULL DEFAULT 0,
+                released INTEGER NOT NULL DEFAULT 0,
+                raids_hosted INTEGER NOT NULL DEFAULT 0,
+                raids_joined INTEGER NOT NULL DEFAULT 0,
+                raids_completed INTEGER NOT NULL DEFAULT 0,
+                raid_tier1 INTEGER NOT NULL DEFAULT 0,
+                raid_tier2 INTEGER NOT NULL DEFAULT 0,
+                raid_tier3 INTEGER NOT NULL DEFAULT 0,
+                raid_tier4 INTEGER NOT NULL DEFAULT 0,
+                raid_tier5 INTEGER NOT NULL DEFAULT 0,
+                badges TEXT NOT NULL DEFAULT '[]',
+                snapshot_at INTEGER NOT NULL,
+                FOREIGN KEY (player_uuid) REFERENCES players(uuid) ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        ),
+    )
+
+    private val V4 = Migration(
+        version = 4,
+        statements = listOf(
+            "ALTER TABLE player_activity ADD COLUMN blocks_mined INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE player_activity ADD COLUMN items_used INTEGER NOT NULL DEFAULT 0",
+        ),
+    )
+
+    private val V5 = Migration(
+        version = 5,
+        statements = listOf(
+            "ALTER TABLE player_activity ADD COLUMN items_crafted INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE player_activity ADD COLUMN items_broken INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE player_activity ADD COLUMN kills_map TEXT NOT NULL DEFAULT '{}'",
+            "ALTER TABLE player_activity ADD COLUMN killed_by_map TEXT NOT NULL DEFAULT '{}'",
+            """
+            CREATE TABLE player_advancements (
+                player_uuid TEXT PRIMARY KEY,
+                completed TEXT NOT NULL DEFAULT '[]',
+                snapshot_at INTEGER NOT NULL,
+                FOREIGN KEY (player_uuid) REFERENCES players(uuid) ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        ),
+    )
+
+    private val V6 = Migration(
+        version = 6,
+        statements = listOf(
+            """
+            CREATE TABLE player_economy (
+                player_uuid TEXT PRIMARY KEY,
+                cobble_dollars INTEGER NOT NULL DEFAULT 0,
+                snapshot_at INTEGER NOT NULL,
+                FOREIGN KEY (player_uuid) REFERENCES players(uuid) ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        ),
+    )
+
+    private val all: List<Migration> = listOf(V1, V2, V3, V4, V5, V6)
 
     fun applyAll(conn: Connection) {
         ensureSchemaVersionTable(conn)

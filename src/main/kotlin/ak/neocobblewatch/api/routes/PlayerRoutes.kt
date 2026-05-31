@@ -1,6 +1,13 @@
 package ak.neocobblewatch.api.routes
 
 import ak.neocobblewatch.api.ApiContext
+import ak.neocobblewatch.api.dto.ActivityDto
+import ak.neocobblewatch.api.dto.ActivityResponse
+import ak.neocobblewatch.api.dto.AdvancementsDto
+import ak.neocobblewatch.api.dto.AdvancementsResponse
+import ak.neocobblewatch.api.dto.EconomyDto
+import ak.neocobblewatch.api.dto.EconomyResponse
+import ak.neocobblewatch.api.dto.toDto
 import ak.neocobblewatch.api.dto.PageInfo
 import ak.neocobblewatch.api.dto.PartyDto
 import ak.neocobblewatch.api.dto.PartyResponse
@@ -11,7 +18,6 @@ import ak.neocobblewatch.api.dto.PlayerProfileResponse
 import ak.neocobblewatch.api.dto.PokedexDto
 import ak.neocobblewatch.api.dto.PokedexResponse
 import ak.neocobblewatch.api.dto.StatsDto
-import ak.neocobblewatch.api.dto.toDto
 import ak.neocobblewatch.api.dto.toSummaryDto
 import ak.neocobblewatch.api.parsePage
 import ak.neocobblewatch.api.respondBadRequest
@@ -32,6 +38,9 @@ internal fun Route.playerRoutes(ctx: ApiContext) {
             get("/pokedex") { playerPokedex(ctx) }
             get("/party") { playerParty(ctx) }
             get("/pc") { playerPc(ctx) }
+            get("/activity") { playerActivity(ctx) }
+            get("/advancements") { playerAdvancements(ctx) }
+            get("/economy") { playerEconomy(ctx) }
         }
     }
 }
@@ -71,6 +80,24 @@ private suspend fun RoutingContext.playerParty(ctx: ApiContext) {
     val party = ctx.partyRepository.get(uuid)
         ?: return call.respond(PartyResponse(PartyDto(emptyList(), 0L)))
     call.respond(PartyResponse(party.toDto()))
+}
+
+private suspend fun RoutingContext.playerActivity(ctx: ApiContext) {
+    val uuid = call.uuidParam() ?: return call.respondBadRequest("BAD_UUID", "Invalid UUID")
+    val activity = ctx.activityRepository.get(uuid)?.toDto() ?: ActivityDto.EMPTY
+    call.respond(ActivityResponse(activity))
+}
+
+private suspend fun RoutingContext.playerEconomy(ctx: ApiContext) {
+    val uuid = call.uuidParam() ?: return call.respondBadRequest("BAD_UUID", "Invalid UUID")
+    val economy = ctx.economyRepository.get(uuid)?.toDto() ?: EconomyDto.EMPTY
+    call.respond(EconomyResponse(economy))
+}
+
+private suspend fun RoutingContext.playerAdvancements(ctx: ApiContext) {
+    val uuid = call.uuidParam() ?: return call.respondBadRequest("BAD_UUID", "Invalid UUID")
+    val advancements = ctx.advancementsRepository.get(uuid)?.toDto() ?: AdvancementsDto.EMPTY
+    call.respond(AdvancementsResponse(advancements))
 }
 
 private suspend fun RoutingContext.playerPc(ctx: ApiContext) {

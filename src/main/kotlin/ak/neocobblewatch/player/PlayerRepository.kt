@@ -17,6 +17,22 @@ internal class PlayerRepository(private val db: Database) {
     suspend fun upsert(snapshot: PlayerSnapshot) = db.withConnection { conn -> upsert(conn, snapshot) }
     suspend fun get(uuid: UUID): PlayerSnapshot? = db.withConnection { conn -> get(conn, uuid) }
 
+    suspend fun fixUuidLikeNames(cache: Map<UUID, String>) {
+        if (cache.isEmpty()) return
+        db.withConnection { conn ->
+            conn.prepareStatement(
+                "UPDATE players SET name = ? WHERE uuid = ? AND instr(name, '-') > 0",
+            ).use { stmt ->
+                for ((uuid, name) in cache) {
+                    stmt.setString(1, name)
+                    stmt.setUuid(2, uuid)
+                    stmt.addBatch()
+                }
+                stmt.executeBatch()
+            }
+        }
+    }
+
     fun upsert(conn: Connection, snapshot: PlayerSnapshot) {
         conn.prepareStatement(
             """

@@ -1,6 +1,15 @@
 package ak.neocobblewatch.snapshot
 
 import ak.neocobblewatch.Neocobblewatch
+import ak.neocobblewatch.activity.ActivityFileReader
+import ak.neocobblewatch.activity.ActivityRepository
+import ak.neocobblewatch.activity.ActivitySnapshot
+import ak.neocobblewatch.advancements.AdvancementsFileReader
+import ak.neocobblewatch.advancements.AdvancementsRepository
+import ak.neocobblewatch.advancements.AdvancementsSnapshot
+import ak.neocobblewatch.economy.EconomyFileReader
+import ak.neocobblewatch.economy.EconomyRepository
+import ak.neocobblewatch.economy.EconomySnapshot
 import ak.neocobblewatch.core.ServerThreadDispatcher
 import ak.neocobblewatch.party.PartyReader
 import ak.neocobblewatch.party.PartyRepository
@@ -21,6 +30,9 @@ import ak.neocobblewatch.stats.StatsRepository
 import ak.neocobblewatch.stats.StatsSnapshot
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
@@ -33,22 +45,40 @@ internal class PlayerSnapshotter(
     private val pokedexRepository: PokedexRepository,
     private val partyRepository: PartyRepository,
     private val pcRepository: PcRepository,
+    private val activityRepository: ActivityRepository,
+    private val activityFileReader: ActivityFileReader,
+    private val advancementsRepository: AdvancementsRepository,
+    private val advancementsFileReader: AdvancementsFileReader,
+    private val economyRepository: EconomyRepository,
+    private val economyFileReader: EconomyFileReader,
 ) {
     /**
-     * Reads all five domains on the server thread (Cobblemon API requires it), then commits them
-     * to SQLite in a single transaction — one fsync instead of five.
-     * Per-player errors are swallowed and logged so the scheduler's outer loop can move on.
+     * Cobblemon storage (party, PC, Pokédex, stats) must only be accessed from the server
+     * thread — reads happen there and produce immutable snapshots so file IO can safely
+     * proceed off-thread in parallel.
      */
     suspend fun snapshot(player: ServerPlayer, online: Boolean = true) =
         snapshotSafe(player.name.string, player.uuid) {
-            withContext(serverThreadDispatcher) { readOnline(player, online) }
+            val cobblemon = withContext(serverThreadDispatcher) { readCobblemonOnline(player, online) }
+            val (activity, advancements, economy) = readFileData(player.uuid)
+            cobblemon.toBundle(activity, advancements, economy)
         }
 
-    /** Offline path: caller resolves identity/timestamps from disk before invoking. */
     suspend fun snapshot(server: MinecraftServer, ctx: OfflinePlayerContext) =
         snapshotSafe(ctx.name, ctx.uuid) {
-            withContext(serverThreadDispatcher) { readOffline(server, ctx) }
+            val cobblemon = withContext(serverThreadDispatcher) { readCobblemonOffline(server, ctx) }
+            val (activity, advancements, economy) = readFileData(ctx.uuid)
+            cobblemon.toBundle(activity, advancements, economy)
         }
+
+    private suspend fun readFileData(uuid: UUID) = withContext(Dispatchers.IO) {
+        coroutineScope {
+            val a = async { activityFileReader.readFor(uuid) }
+            val b = async { advancementsFileReader.readFor(uuid) }
+            val e = async { economyFileReader.readFor(uuid) }
+            Triple(a.await(), b.await(), e.await())
+        }
+    }
 
     private suspend fun snapshotSafe(name: String, uuid: UUID, read: suspend () -> Bundle) {
         try {
@@ -60,7 +90,7 @@ internal class PlayerSnapshotter(
         }
     }
 
-    private fun readOnline(player: ServerPlayer, online: Boolean): Bundle = Bundle(
+    private fun readCobblemonOnline(player: ServerPlayer, online: Boolean) = CobblemonBundle(
         player = PlayerReader.readFor(player, online),
         stats = StatsReader.readFor(player),
         pokedex = PokedexReader.readFor(player),
@@ -68,7 +98,7 @@ internal class PlayerSnapshotter(
         pc = PcReader.readFor(player),
     )
 
-    private fun readOffline(server: MinecraftServer, ctx: OfflinePlayerContext): Bundle = Bundle(
+    private fun readCobblemonOffline(server: MinecraftServer, ctx: OfflinePlayerContext) = CobblemonBundle(
         player = PlayerReader.readFor(server, ctx, online = false),
         stats = StatsReader.readFor(server, ctx.uuid),
         pokedex = PokedexReader.readFor(server, ctx.uuid),
@@ -82,6 +112,20 @@ internal class PlayerSnapshotter(
         pokedexRepository.replace(conn, bundle.pokedex)
         partyRepository.replace(conn, bundle.party)
         pcRepository.replace(conn, bundle.pc)
+        activityRepository.upsert(conn, bundle.activity)
+        advancementsRepository.upsert(conn, bundle.advancements)
+        economyRepository.upsert(conn, bundle.economy)
+    }
+
+    private data class CobblemonBundle(
+        val player: PlayerSnapshot,
+        val stats: StatsSnapshot,
+        val pokedex: PokedexSnapshot,
+        val party: PartySnapshot,
+        val pc: PcSnapshot,
+    ) {
+        fun toBundle(activity: ActivitySnapshot, advancements: AdvancementsSnapshot, economy: EconomySnapshot) =
+            Bundle(player, stats, pokedex, party, pc, activity, advancements, economy)
     }
 
     private data class Bundle(
@@ -90,5 +134,8 @@ internal class PlayerSnapshotter(
         val pokedex: PokedexSnapshot,
         val party: PartySnapshot,
         val pc: PcSnapshot,
+        val activity: ActivitySnapshot,
+        val advancements: AdvancementsSnapshot,
+        val economy: EconomySnapshot,
     )
 }

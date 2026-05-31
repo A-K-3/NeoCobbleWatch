@@ -1,5 +1,8 @@
 package ak.neocobblewatch.api
 
+import ak.neocobblewatch.activity.ActivityRepository
+import ak.neocobblewatch.advancements.AdvancementsRepository
+import ak.neocobblewatch.economy.EconomyRepository
 import ak.neocobblewatch.core.HttpConfig
 import ak.neocobblewatch.party.PartyRepository
 import ak.neocobblewatch.pc.PcRepository
@@ -22,4 +25,7 @@ internal class ApiContext(
     val pcRepository: PcRepository,
     val topsRepository: TopsRepository,
     val speciesLabelsCache: SpeciesLabelsCache,
+    val activityRepository: ActivityRepository,
+    val advancementsRepository: AdvancementsRepository,
+    val economyRepository: EconomyRepository,
 )

@@ -1,6 +1,12 @@
 package ak.neocobblewatch.core
 
 import ak.neocobblewatch.Neocobblewatch
+import ak.neocobblewatch.activity.ActivityFileReader
+import ak.neocobblewatch.activity.ActivityRepository
+import ak.neocobblewatch.advancements.AdvancementsFileReader
+import ak.neocobblewatch.advancements.AdvancementsRepository
+import ak.neocobblewatch.economy.EconomyFileReader
+import ak.neocobblewatch.economy.EconomyRepository
 import ak.neocobblewatch.api.ApiContext
 import ak.neocobblewatch.api.HttpServer
 import ak.neocobblewatch.party.PartyRepository
@@ -30,12 +36,14 @@ internal object ModLifecycle {
 
     private var scheduler: SnapshotScheduler? = null
     private var httpServer: HttpServer? = null
+    @Volatile internal var backfill: BackfillRunner? = null
 
     fun register() {
         ServerLifecycleEvents.SERVER_STARTING.register(::onServerStarting)
         ServerLifecycleEvents.SERVER_STOPPING.register(::onServerStopping)
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ -> onPlayerJoin(handler.player) }
         ServerPlayConnectionEvents.DISCONNECT.register { handler, _ -> onPlayerLeave(handler.player) }
+        Commands.register()
     }
 
     private fun onServerStarting(server: MinecraftServer) {
@@ -55,11 +63,12 @@ internal object ModLifecycle {
         val dbPath = worldRoot.resolve(Config.database().path)
         database.open(dbPath)
 
-        val (activeScheduler, apiCtx, backfill) = buildRuntime(server, worldRoot)
+        val (activeScheduler, apiCtx, runner) = buildRuntime(server, worldRoot)
         scheduler = activeScheduler.also { it.start() }
         httpServer = HttpServer(apiCtx).also { it.start() }
+        backfill = runner
 
-        modScope.scope.launch(CoroutineName("backfill")) { backfill.runIfNeeded() }
+        modScope.scope.launch(CoroutineName("backfill")) { runner.runIfNeeded() }
 
         val http = Config.http()
         val snapshot = Config.snapshot()
@@ -79,6 +88,7 @@ internal object ModLifecycle {
         httpServer = null
         scheduler?.stop()
         scheduler = null
+        backfill = null
         modScope.cancel()
         database.close()
         serverThreadDispatcher.unbind()
@@ -98,7 +108,7 @@ internal object ModLifecycle {
     private data class Runtime(
         val scheduler: SnapshotScheduler,
         val apiContext: ApiContext,
-        val backfill: BackfillRunner,
+        val runner: BackfillRunner,
     )
 
     private fun buildRuntime(server: MinecraftServer, worldRoot: java.nio.file.Path): Runtime {
@@ -109,6 +119,12 @@ internal object ModLifecycle {
         val pcRepo = PcRepository(database)
         val topsRepo = TopsRepository(database)
         val modStateRepo = ModStateRepository(database)
+        val activityRepo = ActivityRepository(database)
+        val activityReader = ActivityFileReader(worldRoot.resolve("stats"))
+        val advancementsRepo = AdvancementsRepository(database)
+        val advancementsReader = AdvancementsFileReader(worldRoot.resolve("advancements"))
+        val economyRepo = EconomyRepository(database)
+        val economyReader = EconomyFileReader(worldRoot.resolve("cobbledollarsplayerdata"))
         val snapshotter = PlayerSnapshotter(
             serverThreadDispatcher = serverThreadDispatcher,
             database = database,
@@ -117,6 +133,12 @@ internal object ModLifecycle {
             pokedexRepository = pokedexRepo,
             partyRepository = partyRepo,
             pcRepository = pcRepo,
+            activityRepository = activityRepo,
+            activityFileReader = activityReader,
+            advancementsRepository = advancementsRepo,
+            advancementsFileReader = advancementsReader,
+            economyRepository = economyRepo,
+            economyFileReader = economyReader,
         )
         val scheduler = SnapshotScheduler(
             scope = modScope.scope,
@@ -127,9 +149,15 @@ internal object ModLifecycle {
         )
         val backfill = BackfillRunner(
             server = server,
-            cobblemonDataDir = worldRoot.resolve("cobblemonplayerdata"),
+            dataDirs = listOf(
+                worldRoot.resolve("cobblemonplayerdata"),
+                worldRoot.resolve("stats"),
+                worldRoot.resolve("advancements"),
+                worldRoot.resolve("cobbledollarsplayerdata"),
+            ),
             snapshotter = snapshotter,
             modState = modStateRepo,
+            playerRepository = playerRepo,
             parallelLimit = Config.snapshot().parallelPlayerLimit,
         )
         val apiCtx = ApiContext(
@@ -143,7 +171,10 @@ internal object ModLifecycle {
             pcRepository = pcRepo,
             topsRepository = topsRepo,
             speciesLabelsCache = SpeciesLabelsCache(),
+            activityRepository = activityRepo,
+            advancementsRepository = advancementsRepo,
+            economyRepository = economyRepo,
         )
-        return Runtime(scheduler, apiCtx, backfill)
+        return Runtime(scheduler, apiCtx, runner = backfill)
     }
 }
